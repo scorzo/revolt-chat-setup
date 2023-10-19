@@ -1,3 +1,5 @@
+# Description
+
 Sets ups a docker-compose environment on a virtual machine running Ubuntu 20.04 or Debian 11 with docker and docker-compose installed and configured to run a revolt chat server.
 
 - reserves a static IP
@@ -13,3 +15,9 @@ OS: Ubuntu 20.04 or Debian 11
 - installs docker-compose on the vm
 - transfers docker-compose yaml to vm
 - runs docker-compose on vm in directory where docker-compose.yaml is located
+
+# Instructions:
+- clone repo
+- terraform init
+- terraform apply
+
