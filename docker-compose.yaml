@@ -1,39 +1,86 @@
-version: "3.3"
-services:
-  # Redis
-  redis:
-    image: eqalpha/keydb
-    ports:
-      - "6379:6379"
+version: "3.8"
 
-  # MongoDB
+services:
+  # MongoDB database
   database:
     image: mongo
-    ports:
-      - "27017:27017"
+    restart: always
     volumes:
-      - ./.data/db:/data/db
+      - ./data/db:/data/db
 
-  # MinIO
+  # Redis server
+  redis:
+    image: eqalpha/keydb
+    restart: always
+
+  # S3-compatible storage server
   minio:
     image: minio/minio
     command: server /data
     env_file: .env
     volumes:
-      - ./.data/minio:/data
-    ports:
-      - "10000:9000"
+      - ./data/minio:/data
     restart: always
 
-  # Mongo Express
-  mongo-express:
-    image: mongo-express
+  # Caddy web server
+  caddy:
+    image: caddy
+    restart: always
+    env_file: .env
     ports:
-      - "8081:8081"
-    environment:
-      - ME_CONFIG_MONGODB_SERVER=database
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./data/caddy-data:/data
+      - ./data/caddy-config:/config
+
+  # API server (delta)
+  api:
+    image: ghcr.io/revoltchat/server:20230704-1
+    env_file: .env
     depends_on:
       - database
+      - redis
+      - caddy
+    restart: always
+
+  # Events service (quark)
+  events:
+    image: ghcr.io/revoltchat/bonfire:20230704-1
+    env_file: .env
+    depends_on:
+      - database
+      - redis
+      - caddy
+    restart: always
+
+  # Web App (revite)
+  web:
+    image: ghcr.io/revoltchat/client:master
+    env_file: .env
+    depends_on:
+      - caddy
+    restart: always
+
+  # File server (autumn)
+  autumn:
+    image: ghcr.io/revoltchat/autumn:1.1.10
+    env_file: .env
+    depends_on:
+      - database
+      - createbuckets
+      - caddy
+    environment:
+      - AUTUMN_MONGO_URI=mongodb://database
+    restart: always
+
+  # Metadata and image proxy (january)
+  january:
+    image: ghcr.io/revoltchat/january:master
+    depends_on:
+      - caddy
+    restart: always
 
   # Create buckets for minio.
   createbuckets:
@@ -53,22 +100,3 @@ services:
       /usr/bin/mc mb minio/emojis;
       exit 0;
       "
-  # File server (autumn)
-  autumn:
-    image: ghcr.io/revoltchat/autumn:1.1.5
-    env_file: .env
-    depends_on:
-      - database
-      - createbuckets
-    environment:
-      - AUTUMN_MONGO_URI=mongodb://database
-    ports:
-      - "3000:3000"
-    restart: always
-
-  # Metadata and image proxy (january)
-  january:
-    image: ghcr.io/revoltchat/january:0.3.4
-    ports:
-      - "7000:7000"
-    restart: always
